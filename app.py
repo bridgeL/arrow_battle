@@ -1,5 +1,5 @@
 from agents.silly_agent import SillyAgent
-from game_viewer import GameViewer, AgentGameViewer
+from game_viewer import GameViewer, EvEGameViewer, PvEGameViewer
 
 if __name__ == "__main__":
     # # 玩家对弈
@@ -8,4 +8,4 @@ if __name__ == "__main__":
     # AI对弈
     agent_1 = SillyAgent()
     agent_2 = SillyAgent()
-    AgentGameViewer(agent_1, agent_2).start()
+    EvEGameViewer(agent_1, agent_2).start()
