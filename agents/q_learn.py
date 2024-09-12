@@ -1,11 +1,10 @@
-import random
 import sys
-import numpy as np
+import pickle
+import random
 from agent import Agent
 from tqdm import tqdm
-import pickle
-
-from game import Game
+from game import Dir, Game
+from .silly_agent import SillyAgent
 
 
 class QLearningAgent(Agent):
@@ -19,8 +18,7 @@ class QLearningAgent(Agent):
         self.alpha = alpha  # 学习率
         self.gamma = gamma  # 折扣因子
         self.epsilon = epsilon  # 探索概率
-        self.restart()
-        self.new_state_cnt = 0
+        self.test()
 
     def load(self, filename):
         with open(filename, "rb") as f:
@@ -52,17 +50,6 @@ class QLearningAgent(Agent):
 
         return tuple(state)
 
-    def get_score(self):
-        """返回总分，remain，kill，control"""
-        p = self.game.players[self.player_id]
-        score = [
-            p.score,
-            p.remain,
-            p.kill,
-            p.control,
-        ]
-        return tuple(score)
-
     def get_valid_actions(self):
         """获取当前合法的所有动作"""
         actions = []
@@ -74,88 +61,121 @@ class QLearningAgent(Agent):
                         actions.append(action)
         return tuple(actions)
 
-    def restart(self):
+    def train(self):
+        # 设置为训练模式，并重启
+        self.is_training = True
         self.last_state = None
+        self.mid_state = None
         self.state = None
-        self.action_index = 0
-        self.actions = []
-        self.clear_information()
+        self.last_action_index = 0
+        self.score = 0
+        self.last_score = 0
 
-    def choose_action_index(self):
-        # 探索: 随机选择一个动作
-        if random.uniform(0, 1) < self.epsilon:
-            return random.randint(0, len(self.actions) - 1)
-        # 利用: 选择具有最大 Q 值的动作
-        return np.argmax(self.q_table[self.state])
-
-    def update_state(self):
-        self.last_state = self.state
-        self.state = self.get_state()
-        self.actions = self.get_valid_actions()
-
-        # 如果查表没有，就新建，并填充为0
-        if self.state not in self.q_table:
-            # 记录遇到新情况的次数
-            self.new_state_cnt += 1
-
-            # 即使actions为空（游戏结束），也要保存一个state，来保存最终的Q值
-            n = max(len(self.actions), 1)
-            self.q_table[self.state] = np.zeros(n)
+    def test(self):
+        # 设置为测试模式，并重启
+        self.is_training = False
 
     def ai_move(self):
-        self.update_state()
+        # 测试模式
+        if not self.is_training:
+            state = self.get_state()
+            actions = self.get_valid_actions()
+            action_index = self.choose_action_index(state, actions)
+            action = actions[action_index]
+            self.game.set_placement(*action)
 
-        # decision
-        action_index = self.choose_action_index()
-        action = self.actions[action_index]
+        # 训练模式
+        else:
+            self.last_state = self.state
+            self.last_score = self.score
+            state = self.get_state()
+            actions = self.get_valid_actions()
+            self.score = self.game.players[self.player_id].score
+            self.state = state
 
-        # save decision
-        self.action_index = action_index
+            # 如果查表没有，就新建，并填充为0
+            if state not in self.q_table:
+                self.q_table[state] = [0] * len(actions)
 
-        # apply
-        self.game.set_placement(*action)
+            # 并非首次行动，则更新上次行动的Q表
+            if self.last_state is not None:
+                reward = self.get_reward()
+                self.update_q_table(reward)
 
-    def act(self):
-        # decision
-        self.action_index = self.choose_action_index()
-        action = self.actions[self.action_index]
+            # 决策
+            action_index = self.choose_action_index(state, actions)
+            action = actions[action_index]
+            self.game.set_placement(*action)
+            self.mid_state = self.get_state()
 
-        # apply
-        self.game.set_placement(*action)
+            self.last_action = action
+            self.last_action_index = action_index
 
-    def clear_information(self):
-        self.last_score = None
-        self.score = None
+    def choose_action_index(self, state, actions):
+        # 探索: 随机选择一个动作
+        if random.uniform(0, 1) < self.epsilon:
+            return random.randint(0, len(actions) - 1)
 
-        self.immediate_state = None
-        self.immediate_score = None
+        # 探索：未见过的新情况
+        if state not in self.q_table:
+            return random.randint(0, len(actions) - 1)
 
-        self.reward = 0
-
-    def collect_immediate_information(self):
-        self.immediate_state = self.get_state()
-        self.immediate_score = self.get_score()
-
-    def collect_information(self):
-        self.last_score = self.score
-        self.score = self.get_score()
+        # 利用: 选择具有最大 Q 值的动作
+        arr = self.q_table[state]
+        return max(range(len(arr)), key=lambda i: arr[i])
 
     def get_reward(self):
         """在敌方落子后获得reward"""
+        base_reward = (self.score - self.last_score) * 10
+        direction_reward = self.get_direction_reward()
+        target_reward = self.get_target_reward()
+
+        return base_reward + direction_reward + target_reward
+
+    def get_direction_reward(self):
         reward = 0
-        d_kill = self.score[1] - self.last_score[1]
-        reward += d_kill * 5
+        row, col, dir_value = self.last_action
 
-        # # 训练时要求每个落子的方向尽可能指向更多区域
-        # d_pointing = self.immediate_score[4] - self.last_score[4] - 2
-        # reward += d_pointing * 10
+        # 惩罚指向外部的方向
+        if row == 0 and dir_value in [1, 2, 3]:
+            reward -= 15
+        if row == self.game.size - 1 and dir_value in [5, 6, 7]:
+            reward -= 15
+        if col == 0 and dir_value in [7, 0, 1]:
+            reward -= 15
+        if col == self.game.size - 1 and dir_value in [3, 4, 5]:
+            reward -= 15
 
-        # 避免下在自己的控制区
-        d_control = self.immediate_score[3] - self.last_score[3]
-        if d_control < 0:
-            reward += d_control * 5
+        # 奖励指向中心的方向
+        center = self.game.size // 2
+        if (row < center and dir_value in [5, 6, 7]) or (
+            row > center and dir_value in [1, 2, 3]
+        ):
+            reward += 5
+        if (col < center and dir_value in [3, 4, 5]) or (
+            col > center and dir_value in [7, 0, 1]
+        ):
+            reward += 5
 
-        self.reward = reward
+        return reward
+
+    def get_target_reward(self):
+        reward = 0
+        row, col, dir_value = self.last_action
+        n: int = row * self.game.size + col
+        next_tile = self.game.tiles[n].get_next_tile(Dir(dir_value), self.game)
+
+        while next_tile:
+            if next_tile.piece:
+                if next_tile.piece.owner.id != self.player_id:
+                    # 奖励指向对方棋子
+                    reward += 20
+                else:
+                    # 轻微惩罚指向自己的棋子
+                    reward -= 5
+                break
+            next_tile = next_tile.get_next_tile(Dir(dir_value), self.game)
+
         return reward
 
     def get_final_reward(self):
@@ -170,70 +190,147 @@ class QLearningAgent(Agent):
         # 输了
         return -100
 
-    def update_q_table(self, reward):
-        # 获取下一个状态的最大 Q 值
-        best_next_action = np.max(self.q_table[self.state])
+    def update_q_table(self, reward, best_action_q=None):
+        if best_action_q is None:
+            # 获取下一个状态的最大 Q 值
+            best_action_q = max(self.q_table[self.state])
 
         # 更新 Q 值
-        old_q = self.q_table[self.last_state][self.action_index]
-        new_q = reward + self.gamma * best_next_action
+        old_q = self.q_table[self.last_state][self.last_action_index]
+        new_q = reward + self.gamma * best_action_q
         q = (1 - self.alpha) * old_q + self.alpha * new_q
-        self.q_table[self.last_state][self.action_index] = q
+        self.q_table[self.last_state][self.last_action_index] = q
+
+    def update_final_q_table(self, end_by_me):
+        final_reward = self.get_final_reward()
+
+        # 由于我无法落子而结束
+        if end_by_me:
+            self.last_state = self.state
+            self.state = self.get_state()
+
+            if self.state not in self.q_table:
+                self.q_table[self.state] = [final_reward]
+
+            reward = self.get_reward()
+            self.update_q_table(reward)
+
+        # 由于敌方无法落子而结束
+        else:
+            self.last_state = self.state
+            reward = self.get_reward()
+            self.update_q_table(reward, final_reward)
+
+
+class WinCnt:
+    def __init__(self) -> None:
+        self.clear()
+
+    def clear(self):
+        self.tie = 0
+        self.win = 0
+        self.lose = 0
+
+    @property
+    def cnt(self):
+        return self.tie + self.win + self.lose
+
+    def show(self):
+        print(f"tie: {self.tie/self.cnt*100:.2f}%")
+        print(f"win: {self.win/self.cnt*100:.2f}%")
+        print(f"lose: {self.lose/self.cnt*100:.2f}%")
 
 
 def train_two_agents(episodes=1000):
     game = Game()
 
     # 创建两个Agent，分别控制Player 0 和 Player 1
-    agent_1 = QLearningAgent()
-    agent_2 = QLearningAgent()
+    agent_1 = QLearningAgent(
+        alpha=0.1,
+        gamma=0.5,
+        epsilon=0.099,
+    )
+    agent_1 = SillyAgent()
+    agent_2 = QLearningAgent(
+        alpha=0.1,
+        gamma=0.5,
+        epsilon=0.099,
+    )
+    # agent_2 = SillyAgent()
     agent_1.bind_game(game, 0)
     agent_2.bind_game(game, 1)
     name_1 = "data/q_table_agent_1.pkl"
     name_2 = "data/q_table_agent_2.pkl"
     # agent_1.load(name_1)
-    # agent_2.load(name_2)
+    agent_2.load(name_2)
 
-    _agent_1 = agent_1
-    _agent_2 = agent_2
+    agent_1_is_train = True
+    agent_1_is_train = False
+    both_test = True
+    both_test = False
 
-    miniters = min(episodes // 1000, 50)
-
-    for episode in tqdm(range(episodes), miniters=miniters):
+    win_cnt = WinCnt()
+    for episode in tqdm(range(episodes)):
         game.restart()  # 每一局重新开始
-        agent_1 = _agent_1
-        agent_2 = _agent_2
+        if both_test:
+            pass
 
-        agent_1.restart()
-        agent_2.restart()
+        elif agent_1_is_train:
+            agent_1.train()
 
-        agent_1.collect_information()
-        agent_2.collect_information()
+        else:
+            agent_2.train()
 
-        agent_1.update_state()
-        agent_1.act()
-        agent_1.collect_immediate_information()
-
-        while not game.is_game_over:
-            agent_2.update_state()
-            agent_2.act()
-            agent_2.collect_immediate_information()
-            agent_1.update_state()
-
+        # while True:
+        # 30轮内必须结束
+        for round in range(30):
+            agent_1.ai_move()
             if game.is_game_over:
-                agent_1.update_q_table(agent_1.get_final_reward())
-                agent_2.update_q_table(agent_2.get_final_reward())
+                if both_test:
+                    pass
+                elif agent_1_is_train:
+                    agent_1.update_final_q_table(False)
+                else:
+                    agent_2.update_final_q_table(True)
                 break
 
-            agent_1.collect_information()
-            agent_1.update_q_table(agent_1.get_reward())
+            agent_2.ai_move()
+            if game.is_game_over:
+                if both_test:
+                    pass
+                elif agent_1_is_train:
+                    agent_1.update_final_q_table(True)
+                else:
+                    agent_2.update_final_q_table(False)
+                break
+        else:
+            game.game_over()
 
-            agent_1, agent_2 = agent_2, agent_1
+            # FIXME:
+            # 这里有bug，提前结束，那么state对应的action是如何设定的？对应的q值又是多少？
+            # 同时state本身不涉及到时间，为什么不同适合一样的state却一个游戏中，一个是游戏结局了？
+            # 所以要改
+            if both_test:
+                pass
+            elif agent_1_is_train:
+                agent_1.update_final_q_table(True)
+            else:
+                agent_2.update_final_q_table(False)
 
-    agent_1 = _agent_1
-    agent_2 = _agent_2
-    agent_1.save(name_1)
-    agent_2.save(name_2)
+        if len(game.winner) > 1:
+            win_cnt.tie += 1
+        elif game.winner[0].id == 0:
+            win_cnt.win += 1
+        else:
+            win_cnt.lose += 1
+
+    win_cnt.show()
+    if both_test:
+        pass
+    elif agent_1_is_train:
+        agent_1.save(name_1)
+    else:
+        agent_2.save(name_2)
 
 
 if __name__ == "__main__":
