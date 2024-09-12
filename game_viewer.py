@@ -122,7 +122,42 @@ class GameViewer:
                 self.set_placement(input_str)
 
 
-class AgentGameViewer(GameViewer):
+class PvEGameViewer(GameViewer):
+    agent: Agent
+
+    def __init__(self, agent, agent_first) -> None:
+        super().__init__()
+        self.agent = agent
+        self.agent_first = agent_first
+        self.agent.bind_game(self.game, 0 if agent_first else 1)
+
+    def start(self):
+        """开启Player vs AI 的对弈"""
+        self.display_game()
+        self.display_turn()
+
+        if self.agent_first:
+            while True:
+                self.agent.ai_move()
+                if self.game.is_game_over:
+                    break
+
+                self.set_placement(input())
+                if self.game.is_game_over:
+                    break
+
+        else:
+            while True:
+                self.set_placement(input())
+                if self.game.is_game_over:
+                    break
+
+                self.agent.ai_move()
+                if self.game.is_game_over:
+                    break
+
+
+class EvEGameViewer(GameViewer):
     agent_1: Agent
     agent_2: Agent
 
@@ -138,8 +173,11 @@ class AgentGameViewer(GameViewer):
         self.display_game()
         self.display_turn()
 
-        while not self.game.is_game_over:
-            if self.game.current_player_index == 0:
-                self.agent_1.ai_move()
-            else:
-                self.agent_2.ai_move()
+        while True:
+            self.agent_1.ai_move()
+            if self.game.is_game_over:
+                break
+
+            self.agent_2.ai_move()
+            if self.game.is_game_over:
+                break
