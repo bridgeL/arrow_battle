@@ -1,4 +1,5 @@
 from agents.silly_agent import SillyAgent
+from agents.q_learn import QLearningAgent
 from game_viewer import GameViewer, AgentGameViewer
 
 if __name__ == "__main__":
@@ -7,5 +8,6 @@ if __name__ == "__main__":
 
     # AI对弈
     agent_1 = SillyAgent()
-    agent_2 = SillyAgent()
+    agent_2 = QLearningAgent()
+    agent_2.load("data/q_table_agent_2.pkl")
     AgentGameViewer(agent_1, agent_2).start()
