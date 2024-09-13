@@ -239,19 +239,16 @@ class Game:
         tile.piece.owner = self.players[self.current_player_index]
         tile.piece.dir = dir
 
-        # 棋盘更新了需要告知外界
+        # 切换到下一位
         self.current_player_index = (self.current_player_index + 1) % self.num_player
-        self.update_score()
-        self.on_update()
+        changed = True
 
         # 持续更新直到没有变化
-        while True:
+        while changed:
             changed = self.update_board()
-            if not changed:
-                break
-
-            # 继续告知外界
             self.update_score()
+
+            # 告知外界
             self.on_update()
 
         # 判断游戏是否结束了
