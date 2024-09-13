@@ -241,15 +241,21 @@ class Game:
 
         # 切换到下一位
         self.current_player_index = (self.current_player_index + 1) % self.num_player
+
+        # 首先展示落子
+        for tile in self.tiles:
+            tile.calculate_controllers(self)
+        self.update_score()
+        self.on_update()
+
         changed = True
 
         # 持续更新直到没有变化
         while changed:
             changed = self.update_board()
             self.update_score()
-
-            # 告知外界
-            self.on_update()
+            if changed:
+                self.on_update()
 
         # 判断游戏是否结束了
         if not self.has_valid_moves():
