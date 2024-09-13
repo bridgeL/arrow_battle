@@ -73,10 +73,12 @@ class QLearningAgent(Agent):
         self.test()
 
     def load(self, filename):
+        print("AI载入中...", filename)
         with open(filename, "rb") as f:
             self.q_table = pickle.load(f)
 
     def save(self, filename):
+        print("AI保存中...", filename)
         # 保存训练后的 Q 表
         with open(filename, "wb") as f:
             pickle.dump(self.q_table, f)
@@ -310,24 +312,47 @@ class WinCnt:
         print(f"lose: {self.lose/self.cnt*100:.2f}%")
 
 
-def train_two_agents(episodes=1000):
+def train_two_agents(mode=1):
     game = Game()
+    if mode == 1:
+        print("agent 1 探索阶段")
+        episodes = 100000
+
+    elif mode == 2:
+        print("agent 1 学习阶段")
+        episodes = 10000
+
+    elif mode == 3:
+        print("agent 2 探索阶段")
+        episodes = 100000
+
+    elif mode == 4:
+        print("agent 2 学习阶段")
+        episodes = 10000
+
+    elif mode == 5:
+        print("agent 1 vs agent 2 测试")
+        episodes = 1000
 
     # 创建两个Agent，分别控制Player 0 和 Player 1
     agent_1 = QLearningAgent(
         alpha=0.1,
-        gamma=0.5,
-        epsilon=0.099,
+        gamma=0.9,
+        epsilon=0.5 if mode == 1 else 0.0005,
     )
-    agent_1 = SafeSillyAgent()
+    if mode in [1, 2]:
+        agent_1.train()
+    # agent_1 = SafeSillyAgent()
     # agent_1 = SafeHumanAgent()
 
     agent_2 = QLearningAgent(
-        alpha=0.01,
+        alpha=0.1,
         gamma=0.9,
-        epsilon=0.00099,
+        epsilon=0.5 if mode == 3 else 0.0005,
     )
-    agent_2.train()
+    if mode in [3, 4]:
+        agent_2.train()
+    # agent_2 = SafeSillyAgent()
 
     agent_1.bind_game(game, 0)
     agent_2.bind_game(game, 1)
@@ -381,8 +406,10 @@ def safe_save(agent, name):
 if __name__ == "__main__":
     args = sys.argv
 
-    episodes = 1000
-    if len(args) > 1:
-        episodes = int(args[1])
-
-    train_two_agents(episodes)
+    if len(args) == 1:
+        train_two_agents(1)
+        train_two_agents(2)
+        train_two_agents(3)
+        train_two_agents(4)
+    else:
+        train_two_agents(int(args[1]))
