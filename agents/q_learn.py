@@ -4,7 +4,59 @@ import random
 from agent import Agent
 from tqdm import tqdm
 from game import Dir, Game
+from game_viewer import GameViewer
 from .silly_agent import SillyAgent
+
+
+class SafeAgent:
+    def load(self, filename):
+        pass
+
+    def restart(self):
+        pass
+
+    def game_over(self, end_by_my_action, overtime):
+        pass
+
+
+class SafeSillyAgent(SafeAgent, SillyAgent):
+    pass
+
+
+class SafeHumanAgent(SafeAgent, Agent):
+    game_viewer: GameViewer
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.game_viewer = GameViewer()
+
+    def bind_game(self, game, player_id):
+        super().bind_game(game, player_id)
+        self.game_viewer.bind_game(game)
+
+    def restart(self):
+        self.first = True
+
+    def set_placement(self, input_str: str):
+        try:
+            row, col, dir_value = map(int, input_str.split())
+        except ValueError:
+            print(
+                "Invalid input format. Please enter row, column, and direction value."
+            )
+            return False
+
+        valid, reason = self.game.set_placement(row, col, dir_value)
+        if not valid:
+            print(reason)
+        return valid
+
+    def ai_move(self):
+        if self.first:
+            self.first = False
+            self.game_viewer.display_board()
+        while not self.set_placement(input()):
+            pass
 
 
 class QLearningAgent(Agent):
@@ -61,25 +113,34 @@ class QLearningAgent(Agent):
                         actions.append(action)
         return tuple(actions)
 
-    def train(self):
-        # 设置为训练模式，并重启
-        self.is_training = True
+    def restart(self):
         self.last_state = None
         self.mid_state = None
         self.state = None
         self.last_action_index = 0
         self.score = 0
         self.last_score = 0
+        # self.new_state = 0
+
+    def train(self):
+        # 设置为训练模式，并重启
+        self.is_training = True
+        self.restart()
 
     def test(self):
         # 设置为测试模式，并重启
         self.is_training = False
+        self.restart()
 
     def ai_move(self):
         # 测试模式
         if not self.is_training:
             state = self.get_state()
             actions = self.get_valid_actions()
+
+            # if state not in self.q_table:
+            #     self.new_state += 1
+
             action_index = self.choose_action_index(state, actions)
             action = actions[action_index]
             self.game.set_placement(*action)
@@ -95,6 +156,7 @@ class QLearningAgent(Agent):
 
             # 如果查表没有，就新建，并填充为0
             if state not in self.q_table:
+                # self.new_state += 1
                 self.q_table[state] = [0] * len(actions)
 
             # 并非首次行动，则更新上次行动的Q表
@@ -201,11 +263,24 @@ class QLearningAgent(Agent):
         q = (1 - self.alpha) * old_q + self.alpha * new_q
         self.q_table[self.last_state][self.last_action_index] = q
 
-    def update_final_q_table(self, end_by_me):
+    def game_over(self, end_by_my_action, overtime):
+        if not self.is_training:
+            return
+
         final_reward = self.get_final_reward()
 
-        # 由于我无法落子而结束
-        if end_by_me:
+        # 由于游戏超时而结束
+        if overtime:
+            return
+
+        # 在我的上一步行动后，由于敌方无法落子而结束
+        if end_by_my_action:
+            self.last_state = self.state
+            reward = self.get_reward()
+            self.update_q_table(reward, final_reward)
+
+        # 在敌方的上一步行动后，由于我无法落子而结束
+        else:
             self.last_state = self.state
             self.state = self.get_state()
 
@@ -214,12 +289,6 @@ class QLearningAgent(Agent):
 
             reward = self.get_reward()
             self.update_q_table(reward)
-
-        # 由于敌方无法落子而结束
-        else:
-            self.last_state = self.state
-            reward = self.get_reward()
-            self.update_q_table(reward, final_reward)
 
 
 class WinCnt:
@@ -250,72 +319,47 @@ def train_two_agents(episodes=1000):
         gamma=0.5,
         epsilon=0.099,
     )
-    agent_1 = SillyAgent()
+    agent_1 = SafeSillyAgent()
+    # agent_1 = SafeHumanAgent()
+
     agent_2 = QLearningAgent(
-        alpha=0.1,
-        gamma=0.5,
-        epsilon=0.099,
+        alpha=0.01,
+        gamma=0.9,
+        epsilon=0.00099,
     )
-    # agent_2 = SillyAgent()
+    agent_2.train()
+
     agent_1.bind_game(game, 0)
     agent_2.bind_game(game, 1)
     name_1 = "data/q_table_agent_1.pkl"
     name_2 = "data/q_table_agent_2.pkl"
-    # agent_1.load(name_1)
+    agent_1.load(name_1)
     agent_2.load(name_2)
-
-    agent_1_is_train = True
-    agent_1_is_train = False
-    both_test = True
-    both_test = False
 
     win_cnt = WinCnt()
     for episode in tqdm(range(episodes)):
         game.restart()  # 每一局重新开始
-        if both_test:
-            pass
-
-        elif agent_1_is_train:
-            agent_1.train()
-
-        else:
-            agent_2.train()
+        agent_1.restart()
+        agent_2.restart()
 
         # while True:
         # 30轮内必须结束
         for round in range(30):
             agent_1.ai_move()
             if game.is_game_over:
-                if both_test:
-                    pass
-                elif agent_1_is_train:
-                    agent_1.update_final_q_table(False)
-                else:
-                    agent_2.update_final_q_table(True)
+                agent_1.game_over(True, False)
+                agent_2.game_over(False, False)
                 break
 
             agent_2.ai_move()
             if game.is_game_over:
-                if both_test:
-                    pass
-                elif agent_1_is_train:
-                    agent_1.update_final_q_table(True)
-                else:
-                    agent_2.update_final_q_table(False)
+                agent_1.game_over(False, False)
+                agent_2.game_over(True, False)
                 break
         else:
             game.game_over()
-
-            # FIXME:
-            # 这里有bug，提前结束，那么state对应的action是如何设定的？对应的q值又是多少？
-            # 同时state本身不涉及到时间，为什么不同适合一样的state却一个游戏中，一个是游戏结局了？
-            # 所以要改
-            if both_test:
-                pass
-            elif agent_1_is_train:
-                agent_1.update_final_q_table(True)
-            else:
-                agent_2.update_final_q_table(False)
+            agent_1.game_over(False, True)
+            agent_2.game_over(True, True)
 
         if len(game.winner) > 1:
             win_cnt.tie += 1
@@ -325,12 +369,13 @@ def train_two_agents(episodes=1000):
             win_cnt.lose += 1
 
     win_cnt.show()
-    if both_test:
-        pass
-    elif agent_1_is_train:
-        agent_1.save(name_1)
-    else:
-        agent_2.save(name_2)
+    safe_save(agent_1, name_1)
+    safe_save(agent_2, name_2)
+
+
+def safe_save(agent, name):
+    if type(agent) is QLearningAgent and agent.is_training:
+        agent.save(name)
 
 
 if __name__ == "__main__":
