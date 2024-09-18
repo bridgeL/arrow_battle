@@ -36,10 +36,10 @@ class SillyAgent(Agent):
 
     def ai_move(self):
         while True:
-            row = randint(0, 2)
-            col = randint(0, 2)
+            row = randint(0, 3)
+            col = randint(0, 3)
             dir_val = randint(0, 7)
             valid, reason = self.game.set_placement(row, col, dir_val)
             if valid:
-                self.record_action(self.get_status().to(device).unsqueeze(0), row * 3 + col, dir_val, 0)
+                self.record_action(self.get_status().to(device).unsqueeze(0), row * 4 + col, dir_val, 0)
                 break

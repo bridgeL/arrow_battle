@@ -1,20 +1,21 @@
-import os.path
+import os
 
 from agents.silly_agent import SillyAgent
 from agents.yumi_agent import YumiAgent
 from game import Game
 
 if __name__ == "__main__":
-    is_train = True
+    is_train = False
     # AI对弈
-    agent_1 = SillyAgent()
-    # agent_1 = YumiAgent()
-    # if os.path.exists("yumi_1.pth"):
-    #     agent_1.load_model("yumi_1.pth")
-    agent_2 = YumiAgent()
-    if os.path.exists("yumi_2.pth"):
-        agent_2.load_model("yumi_2.pth")
-    game = Game()
+    # agent_1 = SillyAgent()
+    agent_1 = YumiAgent()
+    if os.path.exists("yumi_test.pth"):
+        agent_1.load_model("yumi_test.pth")
+    # agent_2 = YumiAgent()
+    agent_2 = SillyAgent()
+    # if os.path.exists("yumi_test.pth"):
+    #     agent_2.load_model("yumi_test.pth")
+    game = Game(size=4)
     agent_1.bind_game(game, 0)
     agent_2.bind_game(game, 1)
     win = 0
@@ -40,7 +41,7 @@ if __name__ == "__main__":
                 agent_2.data = agent_1.data
                 agent_1.data = []
                 # agent_1.train(10)
-                agent_2.train(5)
+                agent_2.train(10)
         else:  # 2赢了
             win += 1
             # print("win")
@@ -48,7 +49,7 @@ if __name__ == "__main__":
                 # agent_1.data = agent_2.data
                 # agent_1.train(10)
                 agent_2.train(10)
-        print(win, tie, lose, round(win / (win + tie + lose), 2))
+        print(win, tie, lose, round(win / max(win + lose, 1), 2))
     if is_train:
-        # agent_1.save_model("yumi_1.pth")
-        agent_2.save_model("yumi_2.pth")
+        # agent_1.save_model("yumi_test.pth")
+        agent_2.save_model("yumi_test.pth")

@@ -12,10 +12,10 @@ class YumiModel(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # 定义三层全连接网络
-        self.fc1 = nn.Linear(9 * 16, 1024)  # 第一层
+        self.fc1 = nn.Linear(16 * 16, 1024)  # 第一层
         self.fc2 = nn.Linear(1024, 1024)  # 第二层
         self.fc3 = nn.Linear(1024, 1024)  # 第二层
-        self.fc4 = nn.Linear(1024, 9 + 16)  # 第三层
+        self.fc4 = nn.Linear(1024, 16 + 16)  # 第三层
 
     def forward(self, x, mask_pos=None, mask_dir=None):
         # 展平输入，尺寸为 (batch_size, 9*16)
@@ -28,8 +28,8 @@ class YumiModel(nn.Module):
         logits = self.fc4(x)  # 最后一层不加激活函数
 
         # 分割输出：分别得到 x轴、y轴、方向的 logits
-        logits_pos = logits[:, :9]  # 9个值，表示坐标
-        logits_dir = logits[:, 9:]  # 剩下 16 个值用于方向 (0~15)
+        logits_pos = logits[:, :16]  # 9个值，表示坐标
+        logits_dir = logits[:, 16:]  # 剩下 16 个值用于方向 (0~15)
 
         # 应用掩码：将非法位置的 logits 置为无穷小，避免被选中
         if mask_pos is not None:
@@ -125,12 +125,12 @@ class YumiAgent(Agent):
     def ai_move(self):
         status = self.get_status().to(device).unsqueeze(0)
         # print(self.game.tiles)
-        mask_pos = torch.zeros(9).to(device)
-        for row in range(3):
-            for col in range(3):
+        mask_pos = torch.zeros(16).to(device)
+        for row in range(4):
+            for col in range(4):
                 valid, reason = self.game.check_placement_valid(row, col)
                 if not valid:
-                    mask_pos[row * 3 + col] = -1e9
+                    mask_pos[row * 4 + col] = -1e9
         if self.player_id == 0:
             mask_dir = torch.concat([torch.zeros(8), torch.ones(8) * -1e9])
         else:
@@ -140,8 +140,8 @@ class YumiAgent(Agent):
         # print(mask_pos)
         # print(pos)
         pos = torch.argmax(pos, dim=1)[0].item()
-        row = pos // 3
-        col = pos % 3
+        row = pos // 4
+        col = pos % 4
         dir_val = torch.argmax(dir_val, dim=1)[0].item() % 8
         # print("action:", row, col)
         valid, reason = self.game.set_placement(row, col, dir_val)
