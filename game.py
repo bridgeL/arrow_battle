@@ -65,7 +65,7 @@ class Piece:
 
 
 class Tile:
-    piece: Piece | None
+    piece: Piece
     row: int
     col: int
     controllers: list[Player]
