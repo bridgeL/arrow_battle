@@ -1,17 +1,11 @@
 from enum import Enum
 from typing import Optional
+from event_handler import EventHandler
 
 
 class Player:
-    id: int
-
-    kill: int
-    remain: int
-    control: int
-
-    def __init__(self, id) -> None:
+    def __init__(self, id: int) -> None:
         self.id = id
-
         self.kill = 0
         self.remain = 0
         self.control = 0
@@ -57,33 +51,31 @@ class Dir(Enum):
 
 
 class Piece:
-    owner: Player
-    dir: Dir
+    def __init__(self, owner: Player, dir: Dir) -> None:
+        self.owner = owner
+        self.dir = dir
 
     def __repr__(self) -> str:
         return f"Piece({self.owner}, {self.dir})"
 
 
-class Tile:
-    piece: Piece | None
-    row: int
-    col: int
-    controllers: list[Player]
-    offset = {
-        Dir.LEFT: (0, -1),
-        Dir.LEFT_TOP: (-1, -1),
-        Dir.TOP: (-1, 0),
-        Dir.RIGHT_TOP: (-1, 1),
-        Dir.RIGHT: (0, 1),
-        Dir.RIGHT_BOTTOM: (1, 1),
-        Dir.BOTTOM: (1, 0),
-        Dir.LEFT_BOTTOM: (1, -1),
-    }
+offset = {
+    Dir.LEFT: (0, -1),
+    Dir.LEFT_TOP: (-1, -1),
+    Dir.TOP: (-1, 0),
+    Dir.RIGHT_TOP: (-1, 1),
+    Dir.RIGHT: (0, 1),
+    Dir.RIGHT_BOTTOM: (1, 1),
+    Dir.BOTTOM: (1, 0),
+    Dir.LEFT_BOTTOM: (1, -1),
+}
 
-    def __init__(self, row, col) -> None:
+
+class Tile:
+    def __init__(self, row: int, col: int) -> None:
         self.row = row
         self.col = col
-        self.piece = None
+        self.piece: Optional[Piece] = None
         self.controllers: list[Player] = []
 
     def is_attacked(self):
@@ -95,8 +87,9 @@ class Tile:
         return False
 
     def apply_attack(self):
+        assert self.piece is not None
         for player in self.controllers:
-            if player is not self.piece.owner:
+            if player.id != self.piece.owner.id:
                 player.kill += 1
         self.piece = None
 
@@ -114,53 +107,47 @@ class Tile:
             player for player in game.players if new_controllers.count(player) > 1
         ]
 
-    def __repr__(self) -> str:
-        return f"Tile({self.row},{self.col},{self.piece})"
-
     def get_next_tile(self, dir: Dir, game: "Game") -> Optional["Tile"]:
-        row_offset, col_offset = self.offset[dir]
+        row_offset, col_offset = offset[dir]
 
         new_row = self.row + row_offset
         new_col = self.col + col_offset
 
-        if game.infinite_border:
-            new_row %= game.size
-            new_col %= game.size
-        else:
-            if not (0 <= new_row < game.size) or not (0 <= new_col < game.size):
-                return None
+        if not (0 <= new_row < game.size) or not (0 <= new_col < game.size):
+            return None
 
         return game.tiles[new_row * game.size + new_col]
 
+    def __repr__(self) -> str:
+        return f"Tile({self.row}, {self.col}, {self.piece})"
+
 
 class Game:
-    size: int
-    tiles: list[Tile]
-    infinite_border: bool
-    num_player: int
-    players: list[Player]
-    winner: list[Player]
-    is_game_over: bool
-    current_player_index: int
-    on_update = lambda x: x
-    on_game_over = lambda x: x
-    on_update_end = lambda x: x
-
-    def __init__(self, size=3, num_player=2, infinite_border=False) -> None:
+    def __init__(self, size=3) -> None:
         self.size = size
-        self.num_player = num_player
-        self.infinite_border = infinite_border
+        self.num_player = 2
+        self.event_handler = EventHandler()
         self.restart()
 
     def restart(self):
+        """重启游戏"""
+        # game is over
+        self.is_over = False
+
+        #  0 1st player win
+        #  1 2nd player win
+        # -1 tie
+        self.winner_id = -1
+
         self.tiles = [Tile(i // self.size, i % self.size) for i in range(self.size**2)]
         self.players = [Player(i) for i in range(self.num_player)]
-        self.current_player_index = 0
-        self.is_game_over = False
-        self.winner = []
+        self.current_player_id = 0
 
-    def get_game_str(self) -> str:
-        state = f"g{self.size}{self.num_player}{self.current_player_index}"
+        # 广播事件：game start
+        self.event_handler.handle_event("on_game_start")
+
+    def to_game_str(self) -> str:
+        state = f"g{self.size}{self.num_player}{self.current_player_id}"
         for tile in self.tiles:
             if tile.piece is None:
                 state += "tnn"
@@ -171,38 +158,40 @@ class Game:
     @classmethod
     def from_game_str(cls, game_str: str):
         size = int(game_str[1])
-        num_player = int(game_str[2])
-        current_player_index = int(game_str[3])
+        current_player_id = int(game_str[2])
 
-        game = cls(size, num_player, False)
-        game.current_player_index = current_player_index
+        game = cls(size)
+        game.current_player_id = current_player_id
 
-        index = 4
+        index = 3
         for tile in game.tiles:
             if game_str[index : index + 3] == "tnn":
                 tile.piece = None
             else:
                 owner_id = int(game_str[index + 1])
                 dir_value = int(game_str[index + 2])
-                tile.piece = Piece()
-                tile.piece.owner = game.players[owner_id]
-                tile.piece.dir = Dir(dir_value)
+                tile.piece = Piece(game.players[owner_id], Dir(dir_value))
             index += 3
 
-        game.update_score()
         return game
 
+    @property
+    def current_player(self):
+        return self.players[self.current_player_id]
+
     def has_valid_moves(self):
-        current_player = self.players[self.current_player_index]
         for tile in self.tiles:
             if tile.piece is None:
                 if not tile.controllers:
                     return True
-                if len(tile.controllers) == 1 and current_player is tile.controllers[0]:
+                if (
+                    len(tile.controllers) == 1
+                    and self.current_player is tile.controllers[0]
+                ):
                     return True
         return False
 
-    def check_placement_valid(self, row: int, col: int) -> tuple[bool, str]:
+    def check_placement_position_valid(self, row: int, col: int) -> tuple[bool, str]:
         if not (0 <= row < self.size and 0 <= col < self.size):
             return False, "Out of bounds"
 
@@ -210,80 +199,88 @@ class Game:
         if tile.piece is not None:
             return False, "Tile already occupied"
 
-        if any(
-            player != self.players[self.current_player_index]
-            for player in tile.controllers
-        ):
+        if any(player.id != self.current_player_id for player in tile.controllers):
             return False, "Tile controlled by another player"
 
         return True, ""
 
-    def set_placement(self, row: int, col: int, dir_value: int) -> tuple[bool, str]:
-        if self.is_game_over:
+    def check_placement_valid(self, row, col, dir_value, player_id) -> tuple[bool, str]:
+        if player_id != self.current_player_id:
+            return False, "is not your turn"
+
+        if self.is_over:
             return False, "game is over"
 
         # check dir
         if dir_value < 0 or dir_value >= 8:
             return False, "Invalid direction value"
 
-        dir = Dir(dir_value)
-
         # check position
-        valid, reason = self.check_placement_valid(row, col)
+        valid, reason = self.check_placement_position_valid(row, col)
         if not valid:
             return False, f"Invalid move: {reason}"
 
-        # set placement
+        return True, ""
+
+    def next_turn(self):
+        self.current_player_id = (self.current_player_id + 1) % self.num_player
+
+    def set_placement(
+        self, row: int, col: int, dir_value: int, player_id: int
+    ) -> tuple[bool, str]:
+        valid, reason = self.check_placement_valid(row, col, dir_value, player_id)
+        if not valid:
+            return valid, reason
+
+        # 落子
         tile = self.tiles[row * self.size + col]
-        tile.piece = Piece()
-        tile.piece.owner = self.players[self.current_player_index]
-        tile.piece.dir = dir
+        tile.piece = Piece(self.current_player, Dir(dir_value))
 
-        # 切换到下一位
-        self.current_player_index = (self.current_player_index + 1) % self.num_player
-
-        # 首先展示落子
-        for tile in self.tiles:
-            tile.calculate_controllers(self)
-        self.update_score()
-        self.on_update()
+        # 广播事件：placement
+        self.event_handler.handle_event("on_placement", tile)
 
         changed = True
-
-        # 持续更新直到没有变化
         while changed:
-            changed = self.update_board()
-            self.update_score()
-            if changed:
-                self.on_update()
+            # 重新计算控制区
+            for tile in self.tiles:
+                tile.calculate_controllers(self)
+
+            # 更新得分
+            for player in self.players:
+                player.update_score(self)
+
+            # 广播事件：board update
+            self.event_handler.handle_event("on_board_update")
+
+            # 尝试吃子
+            changed = False
+            for tile in self.tiles:
+                if tile.is_attacked():
+                    tile.apply_attack()
+                    changed = True
+
+        # 切换到下一位
+        self.next_turn()
 
         # 判断游戏是否结束了
         if not self.has_valid_moves():
             self.game_over()
         else:
-            self.on_update_end()
+            # 广播事件：wait next placement
+            self.event_handler.handle_event("on_wait_next_placement")
 
-        return True, ""
+        return valid, reason
 
     def game_over(self):
-        self.is_game_over = True
+        self.is_over = True
+
+        # calculate winner
         max_score = max(p.score for p in self.players)
-        self.winner = [p for p in self.players if p.score == max_score]
-        self.on_game_over()
+        winners = [p for p in self.players if p.score == max_score]
+        if len(winners) > 1:
+            self.winner_id = -1
+        else:
+            self.winner_id = winners[0].id
 
-    def update_score(self):
-        for player in self.players:
-            player.update_score(self)
-
-    def update_board(self):
-        for tile in self.tiles:
-            tile.calculate_controllers(self)
-
-        # remove tiles
-        changed = False
-        for tile in self.tiles:
-            if tile.is_attacked():
-                tile.apply_attack()
-                changed = True
-
-        return changed
+        # 广播事件：game over
+        self.event_handler.handle_event("on_game_over")
