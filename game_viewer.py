@@ -48,6 +48,7 @@ class GameViewer:
         self.display_score()
         print("-" * 70)
         self.display_turn()
+        print("-" * 70)
 
     def on_game_over(self):
         self.display_score()
@@ -58,6 +59,7 @@ class GameViewer:
         self.display_score()
         print("-" * 70)
         self.display_turn()
+        print("-" * 70)
 
     def display_placement(self, tile: Tile):
         player_id = self.game.current_player_id

@@ -88,14 +88,7 @@ class DQNAgent(Agent):
         self.batch_size = 32
         self.gamma = gamma
         self.epsilon = epsilon
-        self.is_training = False
         self.game_cnt = 0
-
-    def train(self):
-        self.is_training = True
-
-    def test(self):
-        self.is_training = False
 
     def load(self, filename):
         print(f"加载模型 {filename}")
