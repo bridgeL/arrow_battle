@@ -5,7 +5,7 @@ from .agents.human import HumanAgent
 from .agents.silly import SillyAgent
 from .agents.next import NextAgent
 
-SS = 1
+SS = 3
 
 if SS == 1:
     game = VisualGame(size=3)

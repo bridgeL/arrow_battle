@@ -94,7 +94,11 @@ class State:
                     xx = x + dx
                     yy = y + dy
                     while xx >= 0 and xx < size and yy >= 0 and yy < size:
+                        if next_state.map[xx][yy] > 0:
+                            break
                         next_state.p1_ctrl[xx][yy] += 1
+                        if next_state.map[xx][yy] < 0:
+                            break
                         xx += dx
                         yy += dy
 
@@ -102,7 +106,11 @@ class State:
                     xx = x + dx
                     yy = y + dy
                     while xx >= 0 and xx < size and yy >= 0 and yy < size:
+                        if next_state.map[xx][yy] < 0:
+                            break
                         next_state.p2_ctrl[xx][yy] += 1
+                        if next_state.map[xx][yy] > 0:
+                            break
                         xx += dx
                         yy += dy
         return next_state

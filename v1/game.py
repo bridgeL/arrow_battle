@@ -57,10 +57,6 @@ class Game:
         self.is_over = False
         self.state = State.create(self.size)
 
-    def set_state(self, state: State):
-        self.is_over = False
-        self.state = state
-
     def get_result(self) -> str:
         scores = self.state.get_scores()
         score1 = sum(scores[0:3])
