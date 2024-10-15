@@ -1,10 +1,11 @@
 from .battle import Battle
 from .game import Game
-from .games.VisualGame import VisualGame
+from .games.visual_game import VisualGame
 from .agents.human import HumanAgent
 from .agents.silly import SillyAgent
+from .agents.next import NextAgent
 
-SS = 2
+SS = 3
 
 if SS == 1:
     game = VisualGame(size=3)
@@ -21,8 +22,8 @@ if SS == 2:
     battle.run(rounds=1)
 
 if SS == 3:
-    game = Game(size=4)
+    game = Game(size=3)
     agent1 = SillyAgent(game, player_index=1)
-    agent2 = SillyAgent(game, player_index=2)
+    agent2 = NextAgent(game, player_index=2)
     battle = Battle(agent1, agent2, game)
     battle.run(rounds=100)

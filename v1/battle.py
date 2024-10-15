@@ -4,11 +4,11 @@ from .game import Game
 
 class Battle:
     def __init__(self, agent1: Agent, agent2: Agent, game: Game):
-        self.agent1 = agent1
-        self.agent1.player_index = 1
-        self.agent2 = agent2
-        self.agent2.player_index = 2
         self.game = game
+        self.agent1 = agent1
+        self.agent2 = agent2
+        assert self.agent1.player_index == 1
+        assert self.agent2.player_index == 2
 
     def run(self, rounds=100):
         results = {"win": 0, "tie": 0, "lose": 0}

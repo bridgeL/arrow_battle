@@ -1,15 +1,4 @@
-from .model import Action, Dir, State
-
-dxdy_map = {
-    Dir.N: (-1, 0),
-    Dir.NE: (-1, 1),
-    Dir.E: (0, 1),
-    Dir.SE: (1, 1),
-    Dir.S: (1, 0),
-    Dir.SW: (1, -1),
-    Dir.W: (0, -1),
-    Dir.NW: (-1, -1),
-}
+from .model import Action, State
 
 
 class Game:
@@ -17,7 +6,8 @@ class Game:
 
     def __init__(self, size: int):
         self.size = size
-        self.reset()
+        self.is_over = False
+        self.state = State.create(self.size)
 
     def check_position(self, x: int, y: int, player_index: int) -> tuple[bool, str]:
         if x < 0 or x >= self.size or y < 0 or y >= self.size:
@@ -30,68 +20,18 @@ class Game:
             return False, "该位置被他人控制"
         return True, ""
 
-    def update(self):
-        self.update_ctrl()
-        while self.fight():
-            self.update_ctrl()
-
-    def fight(self):
-        is_anyone_dead = False
-        for x in range(self.size):
-            for y in range(self.size):
-                if self.state.map[x][y] == 0:
-                    continue
-                if self.state.map[x][y] < 0:
-                    if self.state.p1_ctrl[x][y] >= 2:
-                        self.state.map[x][y] = 0
-                        self.state.p1_kill += 1
-                        is_anyone_dead = True
-                else:
-                    if self.state.p2_ctrl[x][y] >= 2:
-                        self.state.map[x][y] = 0
-                        self.state.p2_kill += 1
-                        is_anyone_dead = True
-        return is_anyone_dead
-
-    def update_ctrl(self):
-        for x in range(self.size):
-            for y in range(self.size):
-                self.state.p1_ctrl[x][y] = 0
-                self.state.p2_ctrl[x][y] = 0
-
-        for x in range(self.size):
-            for y in range(self.size):
-                if self.state.map[x][y] == 0:
-                    continue
-
-                dir = Dir(abs(self.state.map[x][y]) - 1)
-                dx, dy = dxdy_map[dir]
-
-                if self.state.map[x][y] > 0:
-                    xx = x + dx
-                    yy = y + dy
-                    while xx >= 0 and xx < self.size and yy >= 0 and yy < self.size:
-                        self.state.p1_ctrl[xx][yy] += 1
-                        xx += dx
-                        yy += dy
-
-                else:
-                    xx = x + dx
-                    yy = y + dy
-                    while xx >= 0 and xx < self.size and yy >= 0 and yy < self.size:
-                        self.state.p2_ctrl[xx][yy] += 1
-                        xx += dx
-                        yy += dy
-
     def check_end(self):
+        size = self.size
+
         if self.state.current_player_index == 1:
-            for x in range(self.size):
-                for y in range(self.size):
+            for x in range(size):
+                for y in range(size):
                     if self.state.map[x][y] == 0 and self.state.p2_ctrl[x][y] < 2:
                         return False
+
         else:
-            for x in range(self.size):
-                for y in range(self.size):
+            for x in range(size):
+                for y in range(size):
                     if self.state.map[x][y] == 0 and self.state.p1_ctrl[x][y] < 2:
                         return False
 
@@ -106,27 +46,19 @@ class Game:
 
         return self.check_position(action.x, action.y, action.player_index)
 
-    def set_placement(self, action: Action):
-        if action.player_index == 1:
-            self.state.map[action.x][action.y] = action.dir.value + 1
-        else:
-            self.state.map[action.x][action.y] = -(action.dir.value + 1)
-
-    def turn_next(self):
-        if self.state.current_player_index == 1:
-            self.state.current_player_index = 2
-        else:
-            self.state.current_player_index = 1
-
     def step(self, action: Action) -> tuple[bool, str]:
         valid, reason = self.check_action(action)
         if not valid:
             return False, reason
 
-        self.set_placement(action)
-        self.update()
-        self.turn_next()
+        self.state = self.state.set_placement(action)
+        self.state = self.state.update_ctrl()
+        self.state, changed = self.state.fight()
+        while changed:
+            self.state = self.state.update_ctrl()
+            self.state, changed = self.state.fight()
 
+        self.state = self.state.turn_next()
         self.is_over = self.check_end()
         return True, ""
 
@@ -134,26 +66,12 @@ class Game:
         self.is_over = False
         self.state = State.create(self.size)
 
-    def get_scores(self):
-        ctrl1 = 0
-        ctrl2 = 0
-        remain1 = 0
-        remain2 = 0
-        for x in range(self.size):
-            for y in range(self.size):
-                if self.state.map[x][y] == 0:
-                    if self.state.p1_ctrl[x][y] >= 2:
-                        ctrl1 += 1
-                    if self.state.p2_ctrl[x][y] >= 2:
-                        ctrl2 += 1
-                elif self.state.map[x][y] > 0:
-                    remain1 += 1
-                else:
-                    remain2 += 1
-        return [self.state.p1_kill, ctrl1, remain1, self.state.p2_kill, ctrl2, remain2]
+    def set_state(self, state: State):
+        self.is_over = False
+        self.state = state
 
     def get_result(self) -> str:
-        scores = self.get_scores()
+        scores = self.state.get_scores()
         score1 = sum(scores[0:3])
         score2 = sum(scores[3:6])
         if score1 > score2:
