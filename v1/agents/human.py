@@ -16,8 +16,8 @@ class HumanAgent(Agent):
                 else:
                     break
 
-            action = Action(row, col, dir, self.player_index)
-            valid, reason = self.game.check_action(action)
+            action = Action(row, col, dir)
+            valid, reason = self.game.check_position(row, col)
             if not valid:
                 print(reason)
             else:

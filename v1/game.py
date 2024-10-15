@@ -9,21 +9,21 @@ class Game:
         self.is_over = False
         self.state = State.create(self.size)
 
-    def check_position(self, x: int, y: int, player_index: int) -> tuple[bool, str]:
+    def check_position(self, x: int, y: int) -> tuple[bool, str]:
         if x < 0 or x >= self.size or y < 0 or y >= self.size:
             return False, "该位置超出边界"
         if self.state.map[x][y] != 0:
             return False, "该位置已经有棋子了"
-        if player_index == 1 and self.state.p2_ctrl[x][y] >= 2:
+        if self.state.player_index == 1 and self.state.p2_ctrl[x][y] >= 2:
             return False, "该位置被他人控制"
-        if player_index == 2 and self.state.p1_ctrl[x][y] >= 2:
+        if self.state.player_index == 2 and self.state.p1_ctrl[x][y] >= 2:
             return False, "该位置被他人控制"
         return True, ""
 
     def check_end(self):
         size = self.size
 
-        if self.state.current_player_index == 1:
+        if self.state.player_index == 1:
             for x in range(size):
                 for y in range(size):
                     if self.state.map[x][y] == 0 and self.state.p2_ctrl[x][y] < 2:
@@ -37,17 +37,8 @@ class Game:
 
         return True
 
-    def check_action(self, action: Action) -> tuple[bool, str]:
-        if self.is_over:
-            return False, "游戏已经结束"
-
-        if self.state.current_player_index != action.player_index:
-            return False, "没轮到你行动"
-
-        return self.check_position(action.x, action.y, action.player_index)
-
     def step(self, action: Action) -> tuple[bool, str]:
-        valid, reason = self.check_action(action)
+        valid, reason = self.check_position(action.x, action.y)
         if not valid:
             return False, reason
 

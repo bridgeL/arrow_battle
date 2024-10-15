@@ -12,7 +12,7 @@ class NextAgent(Agent):
         for x in range(self.game.size):
             for y in range(self.game.size):
                 for d in Dir.__members__.values():
-                    actions.append(Action(x, y, d, player_index))
+                    actions.append(Action(x, y, d))
         self.my_actions = actions
 
     def get_scores(self, state: State):

@@ -25,14 +25,13 @@ dxdy_map = {
 
 
 class Action:
-    def __init__(self, x: int, y: int, dir: Dir, player_index: int):
+    def __init__(self, x: int, y: int, dir: Dir):
         self.x = x
         self.y = y
         self.dir = dir
-        self.player_index = player_index
 
     def __repr__(self):
-        return f"Action(x={self.x}, y={self.y}, {self.dir}, p{self.player_index})"
+        return f"Action(x={self.x}, y={self.y}, {self.dir})"
 
 
 class State:
@@ -48,7 +47,7 @@ class State:
         self.map = map
         self.p1_ctrl = p1_ctrl
         self.p2_ctrl = p2_ctrl
-        self.current_player_index = current_player_index
+        self.player_index = current_player_index
         self.p1_kill = p1_kill
         self.p2_kill = p2_kill
 
@@ -68,11 +67,11 @@ class State:
         p1_ctrl = [[self.p1_ctrl[j][i] for i in range(size)] for j in range(size)]
         p2_ctrl = [[self.p2_ctrl[j][i] for i in range(size)] for j in range(size)]
         return State(
-            map, p1_ctrl, p2_ctrl, self.current_player_index, self.p1_kill, self.p2_kill
+            map, p1_ctrl, p2_ctrl, self.player_index, self.p1_kill, self.p2_kill
         )
 
     def __repr__(self):
-        return f"State(map={self.map}, p{self.current_player_index}, k1={self.p1_kill}, k2={self.p2_kill})"
+        return f"State(map={self.map}, p{self.player_index}, k1={self.p1_kill}, k2={self.p2_kill})"
 
     def update_ctrl(self):
         next_state = self.clone()
@@ -110,10 +109,10 @@ class State:
 
     def turn_next(self):
         next_state = self.clone()
-        if next_state.current_player_index == 1:
-            next_state.current_player_index = 2
+        if next_state.player_index == 1:
+            next_state.player_index = 2
         else:
-            next_state.current_player_index = 1
+            next_state.player_index = 1
         return next_state
 
     def fight(self):
@@ -140,7 +139,7 @@ class State:
 
     def set_placement(self, action: Action):
         next_state = self.clone()
-        if action.player_index == 1:
+        if self.player_index == 1:
             next_state.map[action.x][action.y] = action.dir.value + 1
         else:
             next_state.map[action.x][action.y] = -(action.dir.value + 1)

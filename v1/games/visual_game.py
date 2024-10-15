@@ -64,13 +64,13 @@ class VisualGame(Game):
         print("-" * 70)
 
     def step(self, action) -> tuple[bool, str]:
-        if action.player_index == 1:
+        if self.state.player_index == 1:
             color = Fore.RED
         else:
             color = Fore.BLUE
         print(f"{color}{action}{Style.RESET_ALL}")
 
-        valid, reason = self.check_action(action)
+        valid, reason = self.check_position(action.x, action.y)
         if not valid:
             return False, reason
 

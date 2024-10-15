@@ -10,8 +10,8 @@ class SillyAgent(Agent):
             row = randint(0, size - 1)
             col = randint(0, size - 1)
             dir = Dir(randint(0, 7))
-            action = Action(row, col, dir, self.player_index)
-            valid, reason = self.game.check_action(action)
+            action = Action(row, col, dir)
+            valid, reason = self.game.check_position(row, col)
             if valid:
                 return action
 

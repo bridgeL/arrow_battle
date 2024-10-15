@@ -20,7 +20,7 @@ class Battle:
             step = 0
 
             while step < 100 and not self.game.is_over:
-                if self.game.state.current_player_index == 1:
+                if self.game.state.player_index == 1:
                     agent = self.agent1
                 else:
                     agent = self.agent2
