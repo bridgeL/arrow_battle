@@ -34,12 +34,12 @@ class VisualGame(Game):
 
             # board
             for y in range(self.size):
-                if self.map[x][y] == 0:
+                if self.state.map[x][y] == 0:
                     row_str += "[ ]"
                 else:
-                    dir = Dir(abs(self.map[x][y]) - 1)
+                    dir = Dir(abs(self.state.map[x][y]) - 1)
                     arrow = arrow_map[dir]
-                    if self.map[x][y] > 0:
+                    if self.state.map[x][y] > 0:
                         color = Fore.RED
                     else:
                         color = Fore.BLUE
@@ -48,12 +48,12 @@ class VisualGame(Game):
             # p1 control
             row_str += "   "
             for y in range(self.size):
-                row_str += f"[{self.p1_ctrl[x][y]}]"
+                row_str += f"[{self.state.p1_ctrl[x][y]}]"
 
             # p2 control
             row_str += "   "
             for y in range(self.size):
-                row_str += f"[{self.p2_ctrl[x][y]}]"
+                row_str += f"[{self.state.p2_ctrl[x][y]}]"
 
             print(row_str)
 
