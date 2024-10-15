@@ -1,4 +1,3 @@
-# Arrow Battle
+# How to Start
 
-TWO PLAYERS USE ARROW PIECES TO FIGHT EACH OTHER!
-
+`python -m v1.app`
